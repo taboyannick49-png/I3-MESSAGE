@@ -1,0 +1,7 @@
+{
+  "name": "I3",
+  "description": "Application de messagerie moderne Material 3 Expressive avec chat RCS, réactions animées, enregistrement vocal split, suggestions IA et gestion des contacts.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
+
