@@ -23,7 +23,7 @@ jobs:
 
     - name: Setup Android Project & Gradle Wrapper
       run: |
-        # 1. Configuration des propriétés Gradle et augmentation de la mémoire RAM allouée
+        # 1. Configuration des propriétés Gradle et augmentation de la mémoire RAM
         echo "android.useAndroidX=true" > gradle.properties
         echo "android.enableJetifier=true" >> gradle.properties
         echo "org.gradle.jvmargs=-Xmx3g -XX:+HeapDumpOnOutOfMemoryError" >> gradle.properties
@@ -71,7 +71,7 @@ jobs:
         EOF
         fi
 
-        # 6. Structuration des fichiers Gradle avec les dépendances Compose complètes
+        # 6. Structuration des fichiers Gradle avec l'ensemble complet des dépendances (Compose, Retrofit, Room, OkHttp)
         cat << 'EOF' > settings.gradle
         pluginManagement {
             repositories { google(); mavenCentral(); gradlePluginPortal() }
@@ -88,6 +88,7 @@ jobs:
         plugins {
             id 'com.android.application' version '8.2.2' apply false
             id 'org.jetbrains.kotlin.android' version '1.9.22' apply false
+            id 'com.google.devtools.ksp' version '1.9.22-1.0.16' apply false
         }
         EOF
 
@@ -95,6 +96,7 @@ jobs:
         plugins {
             id 'com.android.application'
             id 'org.jetbrains.kotlin.android'
+            id 'com.google.devtools.ksp'
         }
 
         android {
@@ -107,6 +109,12 @@ jobs:
                 targetSdk 34
                 versionCode 1
                 versionName "1.0"
+                buildConfigField "String", "GEMINI_API_KEY", "\"AIzaSyDummyKeyForBuild\""
+            }
+
+            buildFeatures {
+                buildConfig true
+                compose true
             }
 
             compileOptions {
@@ -116,10 +124,6 @@ jobs:
 
             kotlinOptions {
                 jvmTarget = '17'
-            }
-
-            buildFeatures {
-                compose true
             }
 
             composeOptions {
@@ -137,10 +141,21 @@ jobs:
             implementation 'androidx.compose.ui:ui-graphics'
             implementation 'androidx.compose.ui:ui-tooling-preview'
             implementation 'androidx.compose.material3:material3'
-            
             implementation 'androidx.compose.material:material-icons-extended'
             implementation 'androidx.lifecycle:lifecycle-runtime-compose:2.7.0'
             implementation 'androidx.lifecycle:lifecycle-viewmodel-compose:2.7.0'
+            
+            // Retrofit & OkHttp pour l'API Gemini
+            implementation 'com.squareup.retrofit2:retrofit:2.9.0'
+            implementation 'com.squareup.retrofit2:converter-gson:2.9.0'
+            implementation 'com.squareup.okhttp3:okhttp:4.12.0'
+            implementation 'com.squareup.okhttp3:logging-interceptor:4.12.0'
+
+            // Room Database pour le stockage local
+            def room_version = "2.6.1"
+            implementation "androidx.room:room-runtime:$room_version"
+            implementation "androidx.room:room-ktx:$room_version"
+            ksp "androidx.room:room-compiler:$room_version"
             
             implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3'
         }
