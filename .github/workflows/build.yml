@@ -70,7 +70,7 @@ jobs:
         EOF
         fi
 
-        # 6. Structuration des fichiers Gradle (avec support Kotlin activé)
+        # 6. Structuration des fichiers Gradle (avec support Kotlin activé et toolchain Java 17)
         cat << 'EOF' > settings.gradle
         pluginManagement {
             repositories { google(); mavenCentral(); gradlePluginPortal() }
@@ -106,6 +106,15 @@ jobs:
                 targetSdk 34
                 versionCode 1
                 versionName "1.0"
+            }
+
+            compileOptions {
+                sourceCompatibility JavaVersion.VERSION_17
+                targetCompatibility JavaVersion.VERSION_17
+            }
+
+            kotlinOptions {
+                jvmTarget = '17'
             }
         }
 
