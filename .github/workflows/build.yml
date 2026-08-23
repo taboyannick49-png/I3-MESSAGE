@@ -21,7 +21,7 @@ jobs:
         java-version: '17'
         distribution: 'temurin'
 
-    - name: Setup Android Project & Auto-Patch Sources
+    - name: Setup Android Project & Advanced Auto-Patch
       run: |
         # 1. Configuration des propriétés Gradle et mémoire RAM
         echo "android.useAndroidX=true" > gradle.properties
@@ -42,7 +42,7 @@ jobs:
         # 4. Copie des fichiers XML de layout
         find . -maxdepth 4 -name "*.xml" ! -path "./app/*" ! -name "build.gradle*" -exec cp {} app/src/main/res/layout/ \; 2>/dev/null || true
 
-        # 5. Script Python pour organiser, nettoyer et patcher automatiquement le code Kotlin
+        # 5. Script Python de nettoyage, organisation et patch intelligent des sources Kotlin
         python3 - << 'PYEOF'
         import os
         import re
@@ -60,12 +60,18 @@ jobs:
                     with open(src_path, "r", encoding="utf-8", errors="ignore") as f:
                         content = f.read()
                     
-                    # Patchs automatiques de compatibilité Jetpack Compose
+                    # Remplacements de compatibilité Compose / Material 3
                     content = content.replace("quadraticTo(", "quadraticBezierTo(")
-                    content = content.replace("ripple(", "rememberRipple(")
+                    
+                    pkg_match = re.search(r"^\s*package\s+([\w\.]+)", content, re.MULTILINE)
+                    
+                    # Injection de l'import ripple si nécessaire
+                    if "ripple(" in content and "import androidx.compose.material3.ripple" not in content:
+                        if pkg_match:
+                            pos = pkg_match.end()
+                            content = content[:pos] + "\nimport androidx.compose.material3.ripple" + content[pos:]
                     
                     # Extraction du package
-                    pkg_match = re.search(r"^\s*package\s+([\w\.]+)", content, re.MULTILINE)
                     if pkg_match:
                         pkg_name = pkg_match.group(1)
                         rel_dir = pkg_name.replace(".", "/")
@@ -82,17 +88,11 @@ jobs:
                             content = content[:pos] + "\nimport com.example.ia_app.BuildConfig" + content[pos:]
                         else:
                             content = "import com.example.ia_app.BuildConfig\n" + content
-
-                    # Injection de l'import rememberRipple si nécessaire
-                    if "rememberRipple" in content and "import androidx.compose.material.ripple.rememberRipple" not in content:
-                        if pkg_match:
-                            pos = pkg_match.end()
-                            content = content[:pos] + "\nimport androidx.compose.material.ripple.rememberRipple" + content[pos:]
                             
                     dest_path = os.path.join(dest_dir, file)
                     with open(dest_path, "w", encoding="utf-8") as f:
                         f.write(content)
-        print("Sources successfully organized and patched!")
+        print("Sources successfully processed and patched.")
         PYEOF
 
         # 6. Manifeste Android universel
@@ -116,7 +116,7 @@ jobs:
         </manifest>
         EOF
 
-        # 7. Structuration des fichiers Gradle complets
+        # 7. Structuration des fichiers Gradle complets (Compose BOM 2024.09.00)
         cat << 'EOF' > settings.gradle
         pluginManagement {
             repositories { google(); mavenCentral(); gradlePluginPortal() }
@@ -172,7 +172,7 @@ jobs:
             }
 
             composeOptions {
-                kotlinCompilerExtensionVersion '1.5.8'
+                kotlinCompilerExtensionVersion '1.5.14'
             }
         }
 
@@ -181,13 +181,12 @@ jobs:
             implementation 'androidx.lifecycle:lifecycle-runtime-ktx:2.7.0'
             implementation 'androidx.activity:activity-compose:1.8.2'
             
-            implementation platform('androidx.compose:compose-bom:2024.02.00')
+            implementation platform('androidx.compose:compose-bom:2024.09.00')
             implementation 'androidx.compose.ui:ui'
             implementation 'androidx.compose.ui:ui-graphics'
             implementation 'androidx.compose.ui:ui-tooling-preview'
             implementation 'androidx.compose.material3:material3'
             implementation 'androidx.compose.material:material-icons-extended'
-            implementation 'androidx.compose.material:material-ripple'
             implementation 'androidx.lifecycle:lifecycle-runtime-compose:2.7.0'
             implementation 'androidx.lifecycle:lifecycle-viewmodel-compose:2.7.0'
             
@@ -211,8 +210,8 @@ jobs:
         gradle wrapper --gradle-version 8.5
         chmod +x gradlew
 
-    - name: Build Debug APK
-      run: ./gradlew :app:assembleDebug
+    - name: Build Debug APK with Stacktrace
+      run: ./gradlew :app:assembleDebug --stacktrace
 
     - name: Upload APK
       uses: actions/upload-artifact@v4
