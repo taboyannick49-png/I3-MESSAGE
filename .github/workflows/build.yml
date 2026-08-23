@@ -71,7 +71,7 @@ jobs:
         EOF
         fi
 
-        # 6. Structuration des fichiers Gradle avec l'ensemble complet des dépendances (Compose, Retrofit, Room, OkHttp)
+        # 6. Structuration des fichiers Gradle avec Moshi, Retrofit, Room et Compose
         cat << 'EOF' > settings.gradle
         pluginManagement {
             repositories { google(); mavenCentral(); gradlePluginPortal() }
@@ -145,9 +145,10 @@ jobs:
             implementation 'androidx.lifecycle:lifecycle-runtime-compose:2.7.0'
             implementation 'androidx.lifecycle:lifecycle-viewmodel-compose:2.7.0'
             
-            // Retrofit & OkHttp pour l'API Gemini
+            // Retrofit, OkHttp et Moshi pour l'API Gemini
             implementation 'com.squareup.retrofit2:retrofit:2.9.0'
-            implementation 'com.squareup.retrofit2:converter-gson:2.9.0'
+            implementation 'com.squareup.retrofit2:converter-moshi:2.9.0'
+            implementation 'com.squareup.moshi:moshi-kotlin:1.15.0'
             implementation 'com.squareup.okhttp3:okhttp:4.12.0'
             implementation 'com.squareup.okhttp3:logging-interceptor:4.12.0'
 
