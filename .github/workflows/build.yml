@@ -61,7 +61,8 @@ jobs:
                         content = f.read()
                     
                     # Remplacements de compatibilité Compose / Material 3
-                    content = content.replace("quadraticTo(", "quadraticBezierTo(")
+                    content = content.replace("quadraticTo(", "quadraticBezierTo:")
+                    content = content.replace("quadraticTo (", "quadraticBezierTo(")
                     
                     pkg_match = re.search(r"^\s*package\s+([\w\.]+)", content, re.MULTILINE)
                     
@@ -81,11 +82,12 @@ jobs:
                     dest_dir = os.path.join(target_base, rel_dir)
                     os.makedirs(dest_dir, exist_ok=True)
                     
-                    # Injection de BuildConfig si nécessaire
-                    if "BuildConfig" in content and "import com.example.ia_app.BuildConfig" not in content:
+                    # Injection garantie de BuildConfig avec nettoyage préalable
+                    if "BuildConfig" in content:
+                        content = re.sub(r'import\s+[\w\.]+\.BuildConfig\s*', '', content)
                         if pkg_match:
                             pos = pkg_match.end()
-                            content = content[:pos] + "\nimport com.example.ia_app.BuildConfig" + content[pos:]
+                            content = content[:pos] + "\nimport com.example.ia_app.BuildConfig\n" + content[pos:]
                         else:
                             content = "import com.example.ia_app.BuildConfig\n" + content
                             
@@ -116,7 +118,7 @@ jobs:
         </manifest>
         EOF
 
-        # 7. Structuration des fichiers Gradle complets (Kotlin 1.9.24 & Compose BOM 2024.09.00)
+        # 7. Structuration des fichiers Gradle complets
         cat << 'EOF' > settings.gradle
         pluginManagement {
             repositories { google(); mavenCentral(); gradlePluginPortal() }
