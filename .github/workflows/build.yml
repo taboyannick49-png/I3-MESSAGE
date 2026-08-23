@@ -1,0 +1,132 @@
+name: Build Android APK Universal
+
+on:
+  push:
+    branches: [ "main", "master" ]
+  pull_request:
+    branches: [ "main", "master" ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Set up JDK 17
+      uses: actions/setup-java@v4
+      with:
+        java-version: '17'
+        distribution: 'temurin'
+
+    - name: Setup Android Project & Gradle Wrapper
+      run: |
+        # 1. Configuration des propriétés Gradle
+        echo "android.useAndroidX=true" > gradle.properties
+        echo "android.enableJetifier=true" >> gradle.properties
+
+        # 2. Création de l'arborescence par défaut
+        mkdir -p app/src/main/java/com/example/ia_app
+        mkdir -p app/src/main/res/layout
+        mkdir -p app/src/main/res/values
+
+        # 3. Fichier strings.xml minimal
+        cat << 'EOF' > app/src/main/res/values/strings.xml
+        <resources>
+            <string name="app_name">Mon Application IA</string>
+        </resources>
+        EOF
+
+        # 4. Copie automatique des sources existantes (Java / Kotlin / Layouts)
+        find . -maxdepth 4 -name "*.java" ! -path "./app/*" -exec cp {} app/src/main/java/com/example/ia_app/ \; 2>/dev/null || true
+        find . -maxdepth 4 -name "*.kt" ! -path "./app/*" -exec cp {} app/src/main/java/com/example/ia_app/ \; 2>/dev/null || true
+        find . -maxdepth 4 -name "*.xml" ! -path "./app/*" ! -name "build.gradle*" -exec cp {} app/src/main/res/layout/ \; 2>/dev/null || true
+
+        # 5. Manifeste Android universel (sans dépendance bloquante)
+        MANIFEST_PATH=$(find . -maxdepth 4 -name "AndroidManifest.xml" ! -path "./app/*" | head -n 1)
+        if [ -n "$MANIFEST_PATH" ]; then
+          cp "$MANIFEST_PATH" app/src/main/AndroidManifest.xml
+        else
+          cat << 'EOF' > app/src/main/AndroidManifest.xml
+        <?xml version="1.0" encoding="utf-8"?>
+        <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+            <application
+                android:allowBackup="true"
+                android:label="@string/app_name"
+                android:supportsRtl="true"
+                android:theme="@style/Theme.AppCompat.Light.NoActionBar">
+                <activity
+                    android:name="com.example.ia_app.MainActivity"
+                    android:exported="true">
+                    <intent-filter>
+                        <action android:name="android.intent.action.MAIN" />
+                        <category android:name="android.intent.category.LAUNCHER" />
+                    </intent-filter>
+                </activity>
+            </application>
+        </manifest>
+        EOF
+        fi
+
+        # 6. Structuration des fichiers Gradle (avec support Kotlin activé)
+        cat << 'EOF' > settings.gradle
+        pluginManagement {
+            repositories { google(); mavenCentral(); gradlePluginPortal() }
+        }
+        dependencyResolutionManagement {
+            repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
+            repositories { google(); mavenCentral() }
+        }
+        rootProject.name = "ia_app"
+        include ':app'
+        EOF
+
+        cat << 'EOF' > build.gradle
+        plugins {
+            id 'com.android.application' version '8.2.2' apply false
+            id 'org.jetbrains.kotlin.android' version '1.9.22' apply false
+        }
+        EOF
+
+        cat << 'EOF' > app/build.gradle
+        plugins {
+            id 'com.android.application'
+            id 'org.jetbrains.kotlin.android'
+        }
+
+        android {
+            namespace 'com.example.ia_app'
+            compileSdk 34
+
+            defaultConfig {
+                applicationId "com.example.ia_app"
+                minSdk 24
+                targetSdk 34
+                versionCode 1
+                versionName "1.0"
+            }
+        }
+
+        dependencies {
+            implementation 'androidx.core:core-ktx:1.12.0'
+            implementation 'androidx.appcompat:appcompat:1.6.1'
+            implementation 'com.google.android.material:material:1.11.0'
+            implementation 'androidx.constraintlayout:constraintlayout:2.1.4'
+        }
+        EOF
+
+    - name: Setup Gradle 8.5
+      run: |
+        gradle wrapper --gradle-version 8.5
+        chmod +x gradlew
+
+    - name: Build Debug APK
+      run: ./gradlew :app:assembleDebug
+
+    - name: Upload APK
+      uses: actions/upload-artifact@v4
+      with:
+        name: app-debug-apk
+        path: 'app/build/outputs/apk/debug/*.apk'
