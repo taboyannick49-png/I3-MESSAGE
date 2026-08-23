@@ -70,7 +70,7 @@ jobs:
         EOF
         fi
 
-        # 6. Structuration des fichiers Gradle avec Jetpack Compose
+        # 6. Structuration des fichiers Gradle avec les dépendances Compose complètes
         cat << 'EOF' > settings.gradle
         pluginManagement {
             repositories { google(); mavenCentral(); gradlePluginPortal() }
@@ -136,6 +136,10 @@ jobs:
             implementation 'androidx.compose.ui:ui-graphics'
             implementation 'androidx.compose.ui:ui-tooling-preview'
             implementation 'androidx.compose.material3:material3'
+            
+            # Ajout des icônes étendues et des extensions lifecycle manquantes
+            implementation 'androidx.compose.material:material-icons-extended'
+            implementation 'androidx.lifecycle:lifecycle-runtime-compose:2.7.0'
             implementation 'androidx.lifecycle:lifecycle-viewmodel-compose:2.7.0'
             
             implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3'
