@@ -44,7 +44,7 @@ jobs:
         find . -maxdepth 4 -name "*.kt" ! -path "./app/*" -exec cp {} app/src/main/java/com/example/ia_app/ \; 2>/dev/null || true
         find . -maxdepth 4 -name "*.xml" ! -path "./app/*" ! -name "build.gradle*" -exec cp {} app/src/main/res/layout/ \; 2>/dev/null || true
 
-        # 5. Manifeste Android universel (sans dépendance bloquante)
+        # 5. Manifeste Android universel avec un thème natif système compatible
         MANIFEST_PATH=$(find . -maxdepth 4 -name "AndroidManifest.xml" ! -path "./app/*" | head -n 1)
         if [ -n "$MANIFEST_PATH" ]; then
           cp "$MANIFEST_PATH" app/src/main/AndroidManifest.xml
@@ -56,7 +56,7 @@ jobs:
                 android:allowBackup="true"
                 android:label="@string/app_name"
                 android:supportsRtl="true"
-                android:theme="@style/Theme.AppCompat.Light.NoActionBar">
+                android:theme="@android:style/Theme.DeviceDefault.NoActionBar">
                 <activity
                     android:name="com.example.ia_app.MainActivity"
                     android:exported="true">
@@ -131,7 +131,6 @@ jobs:
             implementation 'androidx.lifecycle:lifecycle-runtime-ktx:2.7.0'
             implementation 'androidx.activity:activity-compose:1.8.2'
             
-            // Dépendances de base Jetpack Compose
             implementation platform('androidx.compose:compose-bom:2024.02.00')
             implementation 'androidx.compose.ui:ui'
             implementation 'androidx.compose.ui:ui-graphics'
@@ -139,7 +138,6 @@ jobs:
             implementation 'androidx.compose.material3:material3'
             implementation 'androidx.lifecycle:lifecycle-viewmodel-compose:2.7.0'
             
-            // Coroutines
             implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3'
         }
         EOF
