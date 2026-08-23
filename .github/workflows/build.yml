@@ -21,7 +21,7 @@ jobs:
         java-version: '17'
         distribution: 'temurin'
 
-    - name: Setup Android Project & Intelligent Source Organizer
+    - name: Setup Android Project & Auto-Patch Sources
       run: |
         # 1. Configuration des propriétés Gradle et mémoire RAM
         echo "android.useAndroidX=true" > gradle.properties
@@ -42,7 +42,7 @@ jobs:
         # 4. Copie des fichiers XML de layout
         find . -maxdepth 4 -name "*.xml" ! -path "./app/*" ! -name "build.gradle*" -exec cp {} app/src/main/res/layout/ \; 2>/dev/null || true
 
-        # 5. Script Python pour organiser intelligemment les fichiers Kotlin/Java selon leur package et injecter BuildConfig
+        # 5. Script Python pour organiser, nettoyer et patcher automatiquement le code Kotlin
         python3 - << 'PYEOF'
         import os
         import re
@@ -60,6 +60,11 @@ jobs:
                     with open(src_path, "r", encoding="utf-8", errors="ignore") as f:
                         content = f.read()
                     
+                    # Patchs automatiques de compatibilité Jetpack Compose
+                    content = content.replace("quadraticTo(", "quadraticBezierTo(")
+                    content = content.replace("ripple(", "rememberRipple(")
+                    
+                    # Extraction du package
                     pkg_match = re.search(r"^\s*package\s+([\w\.]+)", content, re.MULTILINE)
                     if pkg_match:
                         pkg_name = pkg_match.group(1)
@@ -70,17 +75,24 @@ jobs:
                     dest_dir = os.path.join(target_base, rel_dir)
                     os.makedirs(dest_dir, exist_ok=True)
                     
+                    # Injection de BuildConfig si nécessaire
                     if "BuildConfig" in content and "import com.example.ia_app.BuildConfig" not in content:
                         if pkg_match:
                             pos = pkg_match.end()
                             content = content[:pos] + "\nimport com.example.ia_app.BuildConfig" + content[pos:]
                         else:
                             content = "import com.example.ia_app.BuildConfig\n" + content
+
+                    # Injection de l'import rememberRipple si nécessaire
+                    if "rememberRipple" in content and "import androidx.compose.material.ripple.rememberRipple" not in content:
+                        if pkg_match:
+                            pos = pkg_match.end()
+                            content = content[:pos] + "\nimport androidx.compose.material.ripple.rememberRipple" + content[pos:]
                             
                     dest_path = os.path.join(dest_dir, file)
                     with open(dest_path, "w", encoding="utf-8") as f:
                         f.write(content)
-        print("Sources organized and patched successfully!")
+        print("Sources successfully organized and patched!")
         PYEOF
 
         # 6. Manifeste Android universel
@@ -175,6 +187,7 @@ jobs:
             implementation 'androidx.compose.ui:ui-tooling-preview'
             implementation 'androidx.compose.material3:material3'
             implementation 'androidx.compose.material:material-icons-extended'
+            implementation 'androidx.compose.material:material-ripple'
             implementation 'androidx.lifecycle:lifecycle-runtime-compose:2.7.0'
             implementation 'androidx.lifecycle:lifecycle-viewmodel-compose:2.7.0'
             
