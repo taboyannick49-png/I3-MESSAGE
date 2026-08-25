@@ -42,7 +42,7 @@ jobs:
         # 4. Copie des fichiers XML de layout
         find . -maxdepth 4 -name "*.xml" ! -path "./app/*" ! -name "build.gradle*" -exec cp {} app/src/main/res/layout/ \; 2>/dev/null || true
 
-        # 5. Script Python de nettoyage, organisation et patch intelligent des sources Kotlin
+        # 5. Script Python blindé pour le nettoyage et l'injection des imports
         python3 - << 'PYEOF'
         import os
         import re
@@ -61,35 +61,31 @@ jobs:
                         content = f.read()
                     
                     # Remplacements de compatibilité Compose / Material 3
-                    content = content.replace("quadraticTo(", "quadraticBezierTo:")
+                    content = content.replace("quadraticTo(", "quadraticBezierTo(")
                     content = content.replace("quadraticTo (", "quadraticBezierTo(")
                     
-                    pkg_match = re.search(r"^\s*package\s+([\w\.]+)", content, re.MULTILINE)
-                    
-                    # Injection de l'import ripple si nécessaire
-                    if "ripple(" in content and "import androidx.compose.material3.ripple" not in content:
-                        if pkg_match:
-                            pos = pkg_match.end()
-                            content = content[:pos] + "\nimport androidx.compose.material3.ripple" + content[pos:]
+                    # Nettoyage de tout ancien import de BuildConfig
+                    if "BuildConfig" in content:
+                        content = re.sub(r'import\s+[\w\.]*BuildConfig\s*\r?\n', '', content)
                     
                     # Extraction du package
+                    pkg_match = re.search(r"^\s*package\s+([\w\.]+)", content, re.MULTILINE)
                     if pkg_match:
                         pkg_name = pkg_match.group(1)
                         rel_dir = pkg_name.replace(".", "/")
+                        
+                        # Insertion propre de l'import BuildConfig juste après le package
+                        if "BuildConfig" in content:
+                            package_line = pkg_match.group(0)
+                            replacement = package_line + "\nimport com.example.ia_app.BuildConfig"
+                            content = content.replace(package_line, replacement, 1)
                     else:
                         rel_dir = "com/example/ia_app"
-                        
+                        if "BuildConfig" in content and "import com.example.ia_app.BuildConfig" not in content:
+                            content = "import com.example.ia_app.BuildConfig\n" + content
+                            
                     dest_dir = os.path.join(target_base, rel_dir)
                     os.makedirs(dest_dir, exist_ok=True)
-                    
-                    # Injection garantie de BuildConfig avec nettoyage préalable
-                    if "BuildConfig" in content:
-                        content = re.sub(r'import\s+[\w\.]+\.BuildConfig\s*', '', content)
-                        if pkg_match:
-                            pos = pkg_match.end()
-                            content = content[:pos] + "\nimport com.example.ia_app.BuildConfig\n" + content[pos:]
-                        else:
-                            content = "import com.example.ia_app.BuildConfig\n" + content
                             
                     dest_path = os.path.join(dest_dir, file)
                     with open(dest_path, "w", encoding="utf-8") as f:
