@@ -21,14 +21,14 @@ jobs:
         java-version: '17'
         distribution: 'temurin'
 
-    - name: Setup Android Project & Config Bypass Patch
+    - name: Setup Android Project & Direct Patch
       run: |
         # 1. Configuration des propriétés Gradle et mémoire RAM
         echo "android.useAndroidX=true" > gradle.properties
         echo "android.enableJetifier=true" >> gradle.properties
         echo "org.gradle.jvmargs=-Xmx3g -XX:+HeapDumpOnOutOfMemoryError" >> gradle.properties
 
-        # 2. Création des dossiers de base
+        # 2. Création des dossiers de base si besoin
         mkdir -p app/src/main/res/layout
         mkdir -p app/src/main/res/values
 
@@ -39,10 +39,10 @@ jobs:
         </resources>
         EOF
 
-        # 4. Copie des fichiers XML de layout
+        # 4. Copie des fichiers XML de layout s'ils sont ailleurs
         find . -maxdepth 4 -name "*.xml" ! -path "./app/*" ! -name "build.gradle*" -exec cp {} app/src/main/res/layout/ \; 2>/dev/null || true
 
-        # 5. Script Python pour générer Config.kt et nettoyer/patcher tout le code Kotlin
+        # 5. Script Python pour créer Config.kt et patcher directement les sources Kotlin existantes
         python3 - << 'PYEOF'
         import os
         import re
@@ -59,14 +59,13 @@ jobs:
         with open(os.path.join(config_dir, "Config.kt"), "w", encoding="utf-8") as f:
             f.write(config_content)
 
-        src_dir = "."
+        # Patcher directement tous les fichiers Kotlin/Java du projet
         target_base = "app/src/main/java"
-
-        for root, dirs, files in os.walk(src_dir):
-            if "app" in root.split(os.sep) or ".git" in root.split(os.sep):
-                continue
+        for root, dirs, files in os.walk(target_base):
             for file in files:
                 if file.endswith((".kt", ".java")):
+                    if file == "Config.kt":
+                        continue
                     src_path = os.path.join(root, file)
                     with open(src_path, "r", encoding="utf-8", errors="ignore") as f:
                         content = f.read()
@@ -75,28 +74,16 @@ jobs:
                     content = content.replace("quadraticTo(", "quadraticBezierTo(")
                     content = content.replace("quadraticTo (", "quadraticBezierTo(")
                     
-                    # Remplacement intelligent de BuildConfig par Config
+                    # Remplacement de BuildConfig par Config
                     content = content.replace("BuildConfig.GEMINI_API_KEY", "com.example.ia_app.Config.GEMINI_API_KEY")
                     content = content.replace("BuildConfig.", "com.example.ia_app.Config.")
                     
                     # Nettoyage des vieux imports BuildConfig erronés
                     content = re.sub(r'import\s+[\w\.]*BuildConfig\s*\r?\n', '', content)
                     
-                    # Extraction du package d'origine
-                    pkg_match = re.search(r"^\s*package\s+([\w\.]+)", content, re.MULTILINE)
-                    if pkg_match:
-                        pkg_name = pkg_match.group(1)
-                        rel_dir = pkg_name.replace(".", "/")
-                    else:
-                        rel_dir = "com/example/ia_app"
-                        
-                    dest_dir = os.path.join(target_base, rel_dir)
-                    os.makedirs(dest_dir, exist_ok=True)
-                            
-                    dest_path = os.path.join(dest_dir, file)
-                    with open(dest_path, "w", encoding="utf-8") as f:
+                    with open(src_path, "w", encoding="utf-8") as f:
                         f.write(content)
-        print("Config generated and sources successfully patched.")
+        print("All source files successfully patched in-place.")
         PYEOF
 
         # 6. Manifeste Android universel
