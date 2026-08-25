@@ -21,7 +21,7 @@ jobs:
         java-version: '17'
         distribution: 'temurin'
 
-    - name: Setup Android Project & Advanced Auto-Patch
+    - name: Setup Android Project & Config Bypass Patch
       run: |
         # 1. Configuration des propriétés Gradle et mémoire RAM
         echo "android.useAndroidX=true" > gradle.properties
@@ -42,14 +42,25 @@ jobs:
         # 4. Copie des fichiers XML de layout
         find . -maxdepth 4 -name "*.xml" ! -path "./app/*" ! -name "build.gradle*" -exec cp {} app/src/main/res/layout/ \; 2>/dev/null || true
 
-        # 5. Script Python blindé pour le nettoyage et l'injection des imports
+        # 5. Script Python pour générer Config.kt et nettoyer/patcher tout le code Kotlin
         python3 - << 'PYEOF'
         import os
         import re
 
+        # Création du fichier Config.kt universel dans le package principal
+        config_dir = "app/src/main/java/com/example/ia_app"
+        os.makedirs(config_dir, exist_ok=True)
+        config_content = """package com.example.ia_app
+
+        object Config {
+            const val GEMINI_API_KEY = "AIzaSyDummyKeyForBuild"
+        }
+        """
+        with open(os.path.join(config_dir, "Config.kt"), "w", encoding="utf-8") as f:
+            f.write(config_content)
+
         src_dir = "."
         target_base = "app/src/main/java"
-        os.makedirs(target_base, exist_ok=True)
 
         for root, dirs, files in os.walk(src_dir):
             if "app" in root.split(os.sep) or ".git" in root.split(os.sep):
@@ -60,37 +71,32 @@ jobs:
                     with open(src_path, "r", encoding="utf-8", errors="ignore") as f:
                         content = f.read()
                     
-                    # Remplacements de compatibilité Compose / Material 3
+                    # Remplacements de compatibilité Compose
                     content = content.replace("quadraticTo(", "quadraticBezierTo(")
                     content = content.replace("quadraticTo (", "quadraticBezierTo(")
                     
-                    # Nettoyage de tout ancien import de BuildConfig
-                    if "BuildConfig" in content:
-                        content = re.sub(r'import\s+[\w\.]*BuildConfig\s*\r?\n', '', content)
+                    # Remplacement intelligent de BuildConfig par Config
+                    content = content.replace("BuildConfig.GEMINI_API_KEY", "com.example.ia_app.Config.GEMINI_API_KEY")
+                    content = content.replace("BuildConfig.", "com.example.ia_app.Config.")
                     
-                    # Extraction du package
+                    # Nettoyage des vieux imports BuildConfig erronés
+                    content = re.sub(r'import\s+[\w\.]*BuildConfig\s*\r?\n', '', content)
+                    
+                    # Extraction du package d'origine
                     pkg_match = re.search(r"^\s*package\s+([\w\.]+)", content, re.MULTILINE)
                     if pkg_match:
                         pkg_name = pkg_match.group(1)
                         rel_dir = pkg_name.replace(".", "/")
-                        
-                        # Insertion propre de l'import BuildConfig juste après le package
-                        if "BuildConfig" in content:
-                            package_line = pkg_match.group(0)
-                            replacement = package_line + "\nimport com.example.ia_app.BuildConfig"
-                            content = content.replace(package_line, replacement, 1)
                     else:
                         rel_dir = "com/example/ia_app"
-                        if "BuildConfig" in content and "import com.example.ia_app.BuildConfig" not in content:
-                            content = "import com.example.ia_app.BuildConfig\n" + content
-                            
+                        
                     dest_dir = os.path.join(target_base, rel_dir)
                     os.makedirs(dest_dir, exist_ok=True)
                             
                     dest_path = os.path.join(dest_dir, file)
                     with open(dest_path, "w", encoding="utf-8") as f:
                         f.write(content)
-        print("Sources successfully processed and patched.")
+        print("Config generated and sources successfully patched.")
         PYEOF
 
         # 6. Manifeste Android universel
@@ -152,11 +158,9 @@ jobs:
                 targetSdk 34
                 versionCode 1
                 versionName "1.0"
-                buildConfigField "String", "GEMINI_API_KEY", "\"AIzaSyDummyKeyForBuild\""
             }
 
             buildFeatures {
-                buildConfig true
                 compose true
             }
 
